@@ -1,25 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Lead, LeadFilters } from '@/types/lead';
 import { parseLeadsFromCSV } from '@/utils/csvParser';
 import { calculateBANTScore } from '@/utils/leadScoring';
+import { LeadSearchService } from '@/services/LeadSearchService';
 import { LeadCard } from '@/components/LeadCard';
 import { LeadFilters as LeadFiltersComponent } from '@/components/LeadFilters';
 import { LeadStats } from '@/components/LeadStats';
+import { SearchInput } from '@/components/SearchInput';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Search, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
+  const [searchResults, setSearchResults] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
   const [filters, setFilters] = useState<LeadFilters>({
     sortBy: 'score',
     sortOrder: 'desc'
   });
   const { toast } = useToast();
+
+  // Create search service instance
+  const searchService = useMemo(() => {
+    if (leads.length > 0) {
+      return new LeadSearchService(leads);
+    }
+    return null;
+  }, [leads]);
 
   useEffect(() => {
     loadLeads();
@@ -27,7 +38,22 @@ const Index = () => {
 
   useEffect(() => {
     applyFiltersAndSearch();
-  }, [leads, filters, searchTerm]);
+  }, [leads, filters, searchTerm, searchResults]);
+
+  // Handle search with Fuse.js
+  useEffect(() => {
+    if (!searchService) return;
+
+    if (searchTerm.trim()) {
+      const results = searchService.search(searchTerm);
+      const suggestions = searchService.getSuggestions(searchTerm, 5);
+      setSearchResults(results);
+      setSearchSuggestions(suggestions);
+    } else {
+      setSearchResults([]);
+      setSearchSuggestions([]);
+    }
+  }, [searchTerm, searchService]);
 
   const loadLeads = async () => {
     try {
@@ -50,16 +76,8 @@ const Index = () => {
   };
 
   const applyFiltersAndSearch = () => {
-    let filtered = [...leads];
-
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(lead =>
-        lead.personName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.designation.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
+    // Start with search results if there's a search term, otherwise use all leads
+    let filtered = searchTerm.trim() ? searchResults : [...leads];
 
     // Apply score filters
     if (filters.minScore !== undefined) {
@@ -151,11 +169,11 @@ const Index = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Input
-                  placeholder="Search by name, company, or designation..."
+                <SearchInput
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full"
+                  onChange={setSearchTerm}
+                  suggestions={searchSuggestions}
+                  placeholder="Search by name, company, or designation..."
                 />
               </CardContent>
             </Card>
