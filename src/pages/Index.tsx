@@ -7,9 +7,11 @@ import { LeadCard } from '@/components/LeadCard';
 import { LeadFilters as LeadFiltersComponent } from '@/components/LeadFilters';
 import { LeadStats } from '@/components/LeadStats';
 import { SearchInput } from '@/components/SearchInput';
+import { LoadingSpinner, EndOfList } from '@/components/LoadingSpinner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useInfiniteScroll, useIntersectionObserver } from '@/hooks/useInfiniteScroll';
 
 const Index = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -31,6 +33,19 @@ const Index = () => {
     }
     return null;
   }, [leads]);
+
+  // Infinite scroll for leads
+  const {
+    displayedItems: displayedLeads,
+    loading: loadingMore,
+    hasMore,
+    loadMore,
+    totalItems,
+    displayedCount
+  } = useInfiniteScroll(filteredLeads, 20);
+
+  // Intersection observer for infinite scroll
+  const loadMoreRef = useIntersectionObserver(loadMore);
 
   useEffect(() => {
     loadLeads();
@@ -190,7 +205,8 @@ const Index = () => {
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
-                Showing {filteredLeads.length} of {leads.length} leads
+                Showing {displayedCount} of {filteredLeads.length} leads
+                {leads.length !== filteredLeads.length && ` (${leads.length} total)`}
               </span>
               <span className="text-sm font-medium text-linkedin">
                 Sorted by {filters.sortBy} ({filters.sortOrder === 'desc' ? 'High to Low' : 'Low to High'})
@@ -201,12 +217,27 @@ const Index = () => {
 
         {/* Leads Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredLeads.map((lead) => (
+          {displayedLeads.map((lead) => (
             <LeadCard key={lead.leadId} lead={lead} />
           ))}
         </div>
 
-        {filteredLeads.length === 0 && (
+        {/* Loading More Indicator */}
+        {loadingMore && (
+          <LoadingSpinner message="Loading more leads..." />
+        )}
+
+        {/* Load More Trigger (Invisible) */}
+        {hasMore && !loadingMore && (
+          <div ref={loadMoreRef} className="h-4" />
+        )}
+
+        {/* End of List */}
+        {!hasMore && displayedLeads.length > 0 && (
+          <EndOfList totalCount={filteredLeads.length} displayedCount={displayedCount} />
+        )}
+
+        {filteredLeads.length === 0 && !loading && (
           <Card className="text-center py-12">
             <CardContent>
               <div className="text-muted-foreground">

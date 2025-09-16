@@ -12,7 +12,12 @@ export function LeadStats({ leads }: LeadStatsProps) {
   const warmLeads = leads.filter(lead => lead.bantScore! >= 65 && lead.bantScore! < 80).length;
   const averageScore = leads.length > 0 ? Math.round(leads.reduce((sum, lead) => sum + (lead.bantScore || 0), 0) / leads.length) : 0;
   const totalBudget = leads.reduce((sum, lead) => sum + lead.budget, 0);
-  const averageTimeline = leads.length > 0 ? Math.round(leads.reduce((sum, lead) => sum + lead.timeline, 0) / leads.length) : 0;
+  
+  // Fix NaN issue for average timeline
+  const validTimelines = leads.filter(lead => !isNaN(lead.timeline) && lead.timeline > 0);
+  const averageTimeline = validTimelines.length > 0 
+    ? Math.round(validTimelines.reduce((sum, lead) => sum + lead.timeline, 0) / validTimelines.length) 
+    : 0;
 
   const stats = [
     {
